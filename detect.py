@@ -6,6 +6,7 @@ import cv2
 import torch
 import torch.backends.cudnn as cudnn
 from numpy import random
+import pandas as pd
 
 from models.experimental import attempt_load
 from utils.datasets import LoadStreams, LoadImages
@@ -14,6 +15,7 @@ from utils.general import check_img_size, check_requirements, check_imshow, non_
 from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_synchronized, TracedModel
 
+BEARS_COORDINATE_DICT = {}
 
 def detect(save_img=False):
     source, weights, view_img, save_txt, imgsz, trace = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace
@@ -116,6 +118,7 @@ def detect(save_img=False):
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
 
                 # Write results
+                BEARS_COORDINATE_DICT[p.name] = []
                 for *xyxy, conf, cls in reversed(det):
                     if save_txt:  # Write to file
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
@@ -126,7 +129,8 @@ def detect(save_img=False):
                     if save_img or view_img:  # Add bbox to image
                         label = f'{names[int(cls)]} {conf:.2f}'
                         plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
-
+                        BEARS_COORDINATE_DICT[p.name].append(xyxy)
+                print(BEARS_COORDINATE_DICT)
             # Print time (inference + NMS)
             print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
 
@@ -160,6 +164,37 @@ def detect(save_img=False):
         #print(f"Results saved to {save_dir}{s}")
 
     print(f'Done. ({time.time() - t0:.3f}s)')
+    print(BEARS_COORDINATE_DICT)
+    x_data_list = []
+    y_data_list = []
+    filenames = []
+    for key in BEARS_COORDINATE_DICT.keys():
+        for image in BEARS_COORDINATE_DICT[key]:
+            xy = str(image).replace("tensor(", "")
+            xy = xy.replace(".)", "")
+            xy = xy.replace("[", "")
+            xy = xy.replace("]", "")
+            xy = xy.split(",")
+
+            print(xy)
+
+            x_data = int((int(xy[2]) - int(xy[0])) / 2 + int(xy[0]))
+            y_data = int((int(xy[3]) - int(xy[1])) / 2 + int(xy[1]))
+
+            x_data_list.append(x_data)
+            y_data_list.append(y_data)
+
+            filenames.append(key)
+
+
+
+    dframe(x_data_list, y_data_list, filenames)
+
+
+def dframe(x_data, y_data, file_name):
+    data = {'file_name': file_name, 'X': x_data, 'Y': y_data}
+    df = pd.DataFrame(data)
+    df.to_csv('Results/Заводчане.csv', index=False)
 
 
 if __name__ == '__main__':
